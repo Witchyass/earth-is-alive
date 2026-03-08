@@ -1,0 +1,152 @@
+{
+  "name": "Earthquake War Room - Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-0001",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_hour.geojson",
+        "method": "GET",
+        "options": {}
+      },
+      "id": "node-0002",
+      "name": "Fetch USGS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const features = $input.first().json.features || [];\n\nif (features.length === 0) {\n  return [{ json: { quakes: [], count: 0 } }];\n}\n\nconst quakes = features.map(f => ({\n  id: f.id,\n  magnitude: f.properties.mag,\n  place: f.properties.place,\n  severity: f.properties.mag >= 7 ? 'MAJOR' : f.properties.mag >= 6 ? 'STRONG' : f.properties.mag >= 5 ? 'MODERATE' : 'LIGHT',\n  depth_km: parseFloat(f.geometry.coordinates[2].toFixed(1)),\n  lat: parseFloat(f.geometry.coordinates[1].toFixed(4)),\n  lon: parseFloat(f.geometry.coordinates[0].toFixed(4)),\n  time: new Date(f.properties.time).toISOString(),\n  drama: f.properties.mag >= 7 ? 'THIS IS FINE. (It is not fine.)' : f.properties.mag >= 6 ? 'Nature just cleared its throat.' : f.properties.mag >= 5 ? 'Earth had a little stretch.' : 'A gentle reminder the planet is alive.',\n  usgs_url: f.properties.url\n}));\n\nreturn quakes.map(q => ({ json: q }));"
+      },
+      "id": "node-0003",
+      "name": "Parse and Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-0001",
+              "leftValue": "={{ $json.magnitude }}",
+              "rightValue": 4.5,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-0004",
+      "name": "Valid Quake?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR_SUPABASE_URL.supabase.co/rest/v1/earthquakes",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_SUPABASE_ANON_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer YOUR_SUPABASE_ANON_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: $json.id, magnitude: $json.magnitude, place: $json.place, severity: $json.severity, depth_km: $json.depth_km, lat: $json.lat, lon: $json.lon, time: $json.time, drama: $json.drama, usgs_url: $json.usgs_url }) }}",
+        "options": {}
+      },
+      "id": "node-0005",
+      "name": "Insert into Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [980, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('Skipped low magnitude or invalid entry at ' + new Date().toISOString());\nreturn [{ json: { status: 'skipped', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "node-0006",
+      "name": "Skip Low Magnitude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 420]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [{ "node": "Fetch USGS Feed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch USGS Feed": {
+      "main": [
+        [{ "node": "Parse and Classify", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse and Classify": {
+      "main": [
+        [{ "node": "Valid Quake?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Valid Quake?": {
+      "main": [
+        [{ "node": "Insert into Supabase", "type": "main", "index": 0 }],
+        [{ "node": "Skip Low Magnitude", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "versionId": "1"
+}
