@@ -10,7 +10,7 @@ Every 5 minutes, a pipeline fetches live earthquake data from USGS, classifies i
 
 ## 🖥️ Live Demo
 
-[earth-is-alive.netlify.app](earth-is-alive-oha.netlify.app) 
+[earth-is-alive.netlify.app]([earth-is-alive-oha.netlify.app](https://earth-is-alive-oha.netlify.app/)) 
 
 ---
 
